@@ -1,0 +1,78 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="objloader">
+      <UniqueIdentifier>{8a800828-1dba-4ee0-92d6-1a35e61483b4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="he_mesh.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="meshloader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdparty\objloader\list.h">
+      <Filter>objloader</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdparty\objloader\obj_parser.h">
+      <Filter>objloader</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdparty\objloader\objLoader.h">
+      <Filter>objloader</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdparty\objloader\string_extra.h">
+      <Filter>objloader</Filter>
+    </ClInclude>
+    <ClInclude Include="mlist.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="timer.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="sim.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="he_mesh.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="meshloader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdparty\objloader\list.cpp">
+      <Filter>objloader</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdparty\objloader\obj_parser.cpp">
+      <Filter>objloader</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdparty\objloader\objLoader.cpp">
+      <Filter>objloader</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdparty\objloader\string_extra.cpp">
+      <Filter>objloader</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="timer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sim.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
