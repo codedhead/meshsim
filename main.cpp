@@ -81,8 +81,8 @@ MeshData mesh3()
 
 int main()
 {
-
-
+	// boundary in half edge
+	// forward energy
 
 
 	MeshData mesh_data=mesh3();

@@ -12,6 +12,8 @@ private:
 	void run();
 
 	he_mesh* mesh;
+
+	float threshold2;
 };
 
 #endif

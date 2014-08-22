@@ -83,9 +83,10 @@ public:
 
 	int size(){return cnt;}
 	
-	T* begin(int i=0)
+	T* begin(int i=0,T* start=0)
 	{
-		return (itr[i]=head)?&(itr[i]->val):0;
+		mlist_ele<T>* s=(start?GET_ELE(start):head);
+		return (itr[i]=s)?&(itr[i]->val):0;
 	}
 	T* next(int i=0)
 	{
@@ -96,7 +97,8 @@ public:
 	}
 
 private:
-	mlist_ele<T>* head,*tail,*itr[2];
+	mlist_ele<T>* head,*tail,
+		*itr[2]; // provide two iterators for O(n^2) traversal
 	int cnt;
 };
 
