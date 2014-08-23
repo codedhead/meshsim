@@ -79,6 +79,7 @@
     <ClInclude Include="3rdparty\objloader\obj_parser.h" />
     <ClInclude Include="3rdparty\objloader\string_extra.h" />
     <ClInclude Include="he_mesh.h" />
+    <ClInclude Include="matrix.h" />
     <ClInclude Include="meshloader.h" />
     <ClInclude Include="mlist.h" />
     <ClInclude Include="sim.h" />

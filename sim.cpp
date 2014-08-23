@@ -3,10 +3,6 @@
 #include <vector>
 using namespace std;
 
-struct Matrix44
-{
-	float m[16];
-};
 
 // counter-clockwise order
 __forceinline float4 plane(const float3& p1,const float3& p2,const float3& p3)
@@ -25,6 +21,63 @@ __forceinline float4 plane(const he_vert* v1,const he_vert* v2,const he_vert* v3
 	return plane(v1->pos,v2->pos,v3->pos);
 }
 
+
+// todo: set, no order
+struct vert_pair
+{
+	//vert_pair(he_vert* p1,he_vert* p2):v1(p1),v2(p2){}
+	vert_pair(he_edge* e):edge(e),v1(0),v2(0){}
+	he_edge* edge; // if this pair is edge
+	he_vert* v1,*v2;
+	he_vert v_bar;
+	float error;
+
+	void compute_error()
+	{
+		Matrix44 Qsum(*(Matrix44*)(v1->extra_data));
+		Qsum+=*(Matrix44*)(v1->extra_data);
+
+		Matrix44 inv=Qsum.affineInv();
+		// extract inv's last column
+		v_bar->pos=inv.row(3);
+
+		error=Qsum.quadric(v_bar);
+	}
+
+	void change_pointto(he_vert* oldv,he_vert* newv)
+	{
+		// find all edges from oldv
+		he_edge* edge=oldv->edge;
+		if(edge)
+		{
+			do 
+			{
+				edge->vert_from=newv;
+				edge=edge->pair->next;
+			} while (edge!=oldv->edge);
+		}
+
+		// find all edges to oldv
+		edge=oldv->edge->pair;
+		if(edge)
+		{
+			do 
+			{
+				edge->vert_to=newv;
+				edge=edge->next->pair; // todo: check
+			} while (edge!=oldv->edge->pair);
+		}
+	}
+
+	he_vert* contract()
+	{
+		he_vert* new_vert;
+
+		change_pointto(v1,new_vert);
+		change_pointto(v2,new_vert);
+
+	}
+};
 
 
 void MeshSim::preprocess(he_mesh* mesh)
@@ -74,26 +127,6 @@ void MeshSim::preprocess(he_mesh* mesh)
 		}
 	}
 
-	// todo: set, no order
-	struct vert_pair
-	{
-		vert_pair(he_vert* p1,he_vert* p2):v1(p1),v2(p2){}
-		he_vert* v1,*v2;
-		he_vert v_bar;
-		float error;
-
-		void compute_error()
-		{
-			Matrix44 Qsum(*(Matrix44*)(v1->extra_data));
-			Qsum+=*(Matrix44*)(v1->extra_data);
-
-			Matrix44 inv=Qsum.affineInv();
-			// extract inv's last column
-			v_bar->pos=inv.row(3);
-
-			error=Qsum.quadric(v_bar);
-		}
-	};
 	vector<vert_pair> vert_pairs;
 
 	// select valid pairs
@@ -127,4 +160,17 @@ void MeshSim::preprocess(he_mesh* mesh)
 			}
 		}
 	}
+}
+
+void MeshSim::simplify(he_mesh* mesh,int target_faces)
+{
+	set<vert_pair> heap_;
+
+	preprocess(mesh,heap_);
+
+	while(mesh->faces.size()>target_faces)
+	{
+		heap_.begin();
+	}
+
 }

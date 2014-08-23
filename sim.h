@@ -6,10 +6,9 @@
 class MeshSim
 {
 public:
-	void simplify(he_mesh* mesh);
+	void simplify(he_mesh* mesh,int target_faces);
 private:
 	void preprocess(he_mesh* mesh); // compute Q for all vertices and build pairs heap
-	void run();
 
 	he_mesh* mesh;
 

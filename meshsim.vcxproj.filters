@@ -45,6 +45,9 @@
     <ClInclude Include="sim.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="matrix.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="he_mesh.cpp">
