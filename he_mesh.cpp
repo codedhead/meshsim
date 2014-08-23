@@ -89,10 +89,11 @@ bool he_mesh::construct(const MeshData& _mesh)
 	{
 		he_face* face=faces.append();
 
+		he_edge* _e3[3];
 		for(int i=0;i<3;++i)
 		{
 			// assume manifold, then he_edge is always created
-			he_edge* e=edges.append();
+			he_edge* e=edges.append();_e3[i]=e;
 			if(!face->edge) face->edge=e;
 
 			// debug
@@ -124,6 +125,9 @@ bool he_mesh::construct(const MeshData& _mesh)
 
 			edge_map[int2(vi[i],idx)]=e;
 		}
+		_e3[0]->next=_e3[1];
+		_e3[1]->next=_e3[2];
+		_e3[2]->next=_e3[0];
 	}
 
 	
@@ -213,6 +217,32 @@ bool he_mesh::construct(const MeshData& _mesh)
 
 			bitr->edge->next=i->edge;
 		}
+	}
+
+	return true;
+}
+
+bool he_mesh::dumpOFF(const char* fpath)
+{
+	FILE* fp=fopen(fpath,"w");
+	fprintf(fp,"OOF\n");
+	fprintf(fp,"%d %d %d\n",verts.size(),faces.size(),edges.size());
+
+	map<he_vert*,int> vert2id;
+	int id=0;
+
+	for(he_vert* vert=verts.begin();vert;vert=verts.next())
+	{
+		fprintf(fp,"%f %f %f\n",vert->pos.x,vert->pos.y,vert->pos.z);
+		vert2id[vert]=id++;
+	}
+
+	for(he_face* face=faces.begin();face;face=faces.next())
+	{
+		fprintf(fp,"3 %d %d %d\n",
+			vert2id[face->edge->vert_from],
+			vert2id[face->edge->vert_to],
+			vert2id[face->edge->next->vert_to]);
 	}
 
 	return true;

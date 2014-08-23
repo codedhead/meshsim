@@ -5,6 +5,10 @@
 
 #define GET_ELE(vp) ((mlist_ele<T>*)(vp))
 
+// make it explicit
+#define FIRST_ITR 0
+#define SECOND_ITR 1
+
 template<class T>
 struct mlist_ele
 {
@@ -83,12 +87,12 @@ public:
 
 	int size(){return cnt;}
 	
-	T* begin(int i=0,T* start=0)
+	T* begin(int i=FIRST_ITR,T* start=0)
 	{
 		mlist_ele<T>* s=(start?GET_ELE(start):head);
 		return (itr[i]=s)?&(itr[i]->val):0;
 	}
-	T* next(int i=0)
+	T* next(int i=FIRST_ITR)
 	{
 		return (!itr[i])?0:(
 			(!(itr[i]=itr[i]->next)/*||itr[i]==head*/)?

@@ -1,4 +1,5 @@
 #include "he_mesh.h"
+#include "sim.h"
 #include "timer.h"
 
 #include <stdio.h>
@@ -79,13 +80,44 @@ MeshData mesh3()
 	return MeshData(3,7,7,0,p,0,0,vi);
 }
 
+void write_test_mesh(int row,int col)
+{
+	int vct=(row+1)*(col+1),fct=2*row*col;
+	FILE *fp;
+	char fname[256];
+	sprintf(fname,"plane%dx%d.off",row,col);
+	if (!(fp = fopen(fname, "w"))) {
+		fprintf(stderr, "Unable to write file %s\n", "plane.off");
+		return;
+	}
+
+	fprintf(fp,"OFF\n");
+	fprintf(fp,"%d %d %d\n",vct,fct,0);
+	for(int i=0;i<=row;++i)
+		for(int j=0;j<=col;++j)
+		{
+			fprintf(fp,"%g %g %g\n",j*1.0/col,i*1.0/row,0.0f);
+		}
+		for(int i=0;i<row;++i)
+			for(int j=0;j<col;++j)
+			{
+				fprintf(fp,"3 %d %d %d\n",i*(col+1)+j,(i+1)*(col+1)+j,i*(col+1)+j+1);
+				fprintf(fp,"3 %d %d %d\n",i*(col+1)+j+1,(i+1)*(col+1)+j,(i+1)*(col+1)+j+1);
+			}
+			fclose(fp);
+}
+
 int main()
 {
+	//write_test_mesh(10,10);
+	//MeshData mesh_data=MeshLoader::off("plane10x10.off");
+
+
 	// boundary in half edge
 	// forward energy
 
 
-	MeshData mesh_data=mesh3();
+	MeshData mesh_data=mesh1();
 
 	//MeshData mesh_data=MeshLoader::off("bunny.off");
 
@@ -95,5 +127,9 @@ int main()
 	toc();
 
 	mesh_data.clear();
+
+	MeshSim mesh_simer;
+	mesh_simer.simplify(&mesh,1);
+
 	return 0;
 }

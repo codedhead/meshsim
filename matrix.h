@@ -2,6 +2,8 @@
 #define MATRIX_H_
 
 #include <string.h>
+#include <math.h>
+#include <assert.h>
 
 
 template<class T>
@@ -140,7 +142,7 @@ public:
 		M_(3,2)=M_(2,3)=*mm++;
 		M_(3,3)=*mm++;
 	}
-#undef M_
+
 	
 	bool isAffine() const
 	{
@@ -210,10 +212,10 @@ public:
 	// and inv(M)*b
 
 	// treat it as affine, if need check, check outside
-	void affine_inv(float* dst) const // possibly not const, see memcpy
+	bool affine_inv(float* dst) const // possibly not const, see memcpy
 	{
-		float det=affine_det();
-		assert(det!=0.f&&!isnan(det));
+		float det=affine_det(); if(det==0.f) return false;
+		//assert(det!=0.f&&!_isnanf(det));
 		float invDet=1.f/det;
 		float dstm[16];
 
@@ -233,6 +235,34 @@ public:
 		dstm[13]=-(dstm[1]*m[12]+dstm[5]*m[13]+dstm[9]*m[14]);
 		dstm[14]=-(dstm[2]*m[12]+dstm[6]*m[13]+dstm[10]*m[14]);
 		memcpy(dst,dstm,sizeof(float)*16);
+
+		return true;
+	}
+
+	__forceinline Matrix44 affine_inv(bool& success)const
+	{
+		Matrix44 ret;
+		success=affine_inv(ret.m);
+		return ret;
+	}
+
+	__forceinline float3 last_row()const
+	{
+		return float3(m[12],m[13],m[14]);
+	}
+
+	float quadric(const float3& v)
+	{
+		return M_(0,0)*v.x*v.x+
+			2.f*M_(0,1)*v.x*v.y+
+			2.f*M_(0,2)*v.x*v.z+
+			2.f*M_(0,3)*v.x+
+			M_(1,1)*v.y*v.y+
+			2.f*M_(1,2)*v.y*v.z+
+			2.f*M_(1,3)*v.y+
+			M_(2,2)*v.z*v.z+
+			2.f*M_(2,3)*v.z+
+			M_(3,3);
 	}
 
 	Matrix44& operator=(Matrix44& n)
@@ -241,6 +271,7 @@ public:
 		return *this;
 	}
 
+#undef M_
 };
 
 

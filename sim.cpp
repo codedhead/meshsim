@@ -1,6 +1,8 @@
 #include "sim.h"
 
 #include <vector>
+#include <set>
+#include <map>
 using namespace std;
 
 
@@ -25,26 +27,53 @@ __forceinline float4 plane(const he_vert* v1,const he_vert* v2,const he_vert* v3
 // todo: set, no order
 struct vert_pair
 {
-	//vert_pair(he_vert* p1,he_vert* p2):v1(p1),v2(p2){}
-	vert_pair(he_edge* e):edge(e),v1(0),v2(0){}
-	he_edge* edge; // if this pair is edge
+	vert_pair(he_vert* p1,he_vert* p2):v1(p1),v2(p2){
+		compute_error();
+	}
+	//vert_pair(he_edge* e):edge(e),v1(0),v2(0){}
+	//he_edge* edge; // if this pair is edge
 	he_vert* v1,*v2;
-	he_vert v_bar;
+	float3 optimal_pos;
 	float error;
 
 	void compute_error()
 	{
 		Matrix44 Qsum(*(Matrix44*)(v1->extra_data));
-		Qsum+=*(Matrix44*)(v1->extra_data);
+		Qsum+=*(Matrix44*)(v2->extra_data);
+		
+		bool can_inv;
+		Matrix44 inv=Qsum.affine_inv(can_inv);
 
-		Matrix44 inv=Qsum.affineInv();
-		// extract inv's last column
-		v_bar->pos=inv.row(3);
+		if(can_inv)
+		{
+			optimal_pos=inv.last_row();
+			error=Qsum.quadric(optimal_pos);
+		}
+		else // select from v1, v2 or mid point
+		{
+			float3 vm=0.5f*(v1->pos+v2->pos);
 
-		error=Qsum.quadric(v_bar);
+			optimal_pos=vm;
+			error=Qsum.quadric(optimal_pos);
+
+			float e=Qsum.quadric(v1->pos);
+			if(e<error)
+			{
+				error=e;
+				optimal_pos=v1->pos;
+			}
+
+			e=Qsum.quadric(v2->pos);
+			if(e<error)
+			{
+				error=e;
+				optimal_pos=v2->pos;
+			}
+		}
+		// normal dont care
 	}
 
-	void change_pointto(he_vert* oldv,he_vert* newv)
+	void change_pointto(he_vert* oldv,he_vert* newv)const
 	{
 		// find all edges from oldv
 		he_edge* edge=oldv->edge;
@@ -61,7 +90,7 @@ struct vert_pair
 		edge=oldv->edge->pair;
 		if(edge)
 		{
-			do 
+			do
 			{
 				edge->vert_to=newv;
 				edge=edge->next->pair; // todo: check
@@ -69,19 +98,46 @@ struct vert_pair
 		}
 	}
 
-	he_vert* contract()
+	he_vert* contract(MeshSim& mesh_sim)const
 	{
-		he_vert* new_vert;
+		he_vert* new_vert=mesh_sim.verts.append();
+		new_vert->pos=optimal_pos;
 
 		change_pointto(v1,new_vert);
 		change_pointto(v2,new_vert);
 
+		return new_vert;
 	}
 };
 
-
-void MeshSim::preprocess(he_mesh* mesh)
+struct vert_pair_CMP
 {
+	bool operator()(const vert_pair& a,const vert_pair& b)
+	{
+		return a.error<b.error;
+	}
+};
+
+typedef multiset<vert_pair,vert_pair_CMP> PairHeap;
+
+he_edge* is_edge(he_vert* v1,he_vert* v2)
+{
+	// checking one side suffice
+	he_edge* edge=v1->edge;
+	if(!edge) return 0;
+	do 
+	{
+		if(v2==edge->vert_to) return edge;
+		edge=edge->pair->next;
+	} while (edge!=v1->edge);
+
+	return 0;
+}
+
+void MeshSim::preprocess(he_mesh* mesh,void* hh)
+{
+	PairHeap* heap_=(PairHeap*)hh;
+
 	// store initial Q matrix
 	for(he_vert* vert=mesh->verts.begin();vert;vert=mesh->verts.next())
 	{
@@ -96,9 +152,7 @@ void MeshSim::preprocess(he_mesh* mesh)
 				{
 					Matrix44 Kp;
 
-					he_edge* e=edge->face->edge;
-
-					float4 pl=plane(e->vert_from,e->vert_to,e->next->vert_to);
+					float4 pl=plane(edge->vert_from,edge->vert_to,edge->next->vert_to);
 
 					float mat_lower_tri[]={
 						pl.a*pl.a,
@@ -127,8 +181,6 @@ void MeshSim::preprocess(he_mesh* mesh)
 		}
 	}
 
-	vector<vert_pair> vert_pairs;
-
 	// select valid pairs
 	for(he_vert* v1=mesh->verts.begin();v1;v1=mesh->verts.next())
 	{
@@ -140,23 +192,23 @@ void MeshSim::preprocess(he_mesh* mesh)
 			{
 				he_vert* v2=edge->vert_to;
 
-				float error=
+				// avoid duplicate
+				if(v1<v2)
+					heap_->insert(vert_pair(v1,v2));
 
-				vert_pairs.push_back(vert_pair(v1,v2));
-
-				edge=edge->pair.next;
-			} while (edge!=v1.edge);
+				edge=edge->pair->next;
+			} while (edge!=v1->edge);
 		}
 
 		// find verts within threshold
 		// todo: how to do better
-		he_vert* v2=mesh->verts.begin(1,v1);
-		v2=mesh->verts.next(1); // !=v1
-		for(;v2;v2=mesh->verts.next(1))
+		he_vert* v2=mesh->verts.begin(SECOND_ITR,v1);
+		v2=mesh->verts.next(SECOND_ITR); // !=v1
+		for(;v2;v2=mesh->verts.next(SECOND_ITR))
 		{
-			if(dot(v1->pos,v2->pos)<threshold2)
+			if(!is_edge(v1,v2)&&length2(v1->pos-v2->pos)<threshold2)
 			{
-				vert_pairs.push_back(vert_pair(v1,v2));
+				heap_->insert(vert_pair(v1,v2));
 			}
 		}
 	}
@@ -164,13 +216,82 @@ void MeshSim::preprocess(he_mesh* mesh)
 
 void MeshSim::simplify(he_mesh* mesh,int target_faces)
 {
-	set<vert_pair> heap_;
+	PairHeap heap_;
+	typedef PairHeap::iterator HeapItr;
 
-	preprocess(mesh,heap_);
+	map<he_vert*,vector<HeapItr> > vert2pair; // if pair contains the vert
+
+	preprocess(mesh,&heap_);
+
+	for(HeapItr itr=heap_.begin();itr!=heap_.end();++itr)
+	{
+		vert2pair[itr->v1].push_back(itr);
+		vert2pair[itr->v2].push_back(itr);
+	}
 
 	while(mesh->faces.size()>target_faces)
 	{
-		heap_.begin();
+		HeapItr min_cost_pair=heap_.begin();
+		he_vert* v1=min_cost_pair->v1,*v2=min_cost_pair->v2;
+
+		
+
+		he_vert* new_vert=min_cost_pair->contract();
+		vector<HeapItr> pairs_with_newvert;
+
+		heap_.erase(min_cost_pair);
+
+		vector<HeapItr>& has_v1_pairs=vert2pair[v1];
+		for(int i=0,iLen=has_v1_pairs.size();i<iLen;++i)
+		if(has_v1_pairs[i]!=min_cost_pair)// the only conflict?
+		{
+			he_vert* old_v2=has_v1_pairs[i]->v2;
+			
+			heap_.erase(has_v1_pairs[i]);
+
+			pairs_with_newvert.push_back(heap_.insert(vert_pair(new_vert,old_v2)));
+		}
+
+
+		vector<HeapItr>& has_v2_pairs=vert2pair[v2];
+		for(int i=0,iLen=has_v2_pairs.size();i<iLen;++i)
+		if(has_v2_pairs[i]!=min_cost_pair)// the only conflict?
+		{
+			he_vert* old_v1=has_v2_pairs[i]->v1;
+
+			heap_.erase(has_v2_pairs[i]);
+
+			// do a linear search to find if already pushed
+			bool duplicated=false;
+			for(int j=0,jLen=has_v1_pairs.size();j<jLen;++j)
+			{
+				if(old_v1==has_v1_pairs[j]->v2)
+				{
+					duplicated=true;
+					// todo: remove the collapsed face
+					break;
+				}
+			}
+
+			if(!duplicated)
+				pairs_with_newvert.push_back(heap_.insert(vert_pair(old_v1,new_vert)));
+		}
+
+		vert2pair[new_vert]=pairs_with_newvert;
+
+		// remove
+		
+		// can ignore the edges?
+		he_edge* the_edge=is_edge(v1,v2);
+		if(the_edge) mesh->edges.remove(the_edge);
+		the_edge=is_edge(v2,v1);
+		if(the_edge) mesh->edges.remove(the_edge);
+
+		mesh->verts.remove(v1);
+		mesh->verts.remove(v2);
+
+		vert2pair.erase(v1);
+		vert2pair.erase(v2);
 	}
 
 }

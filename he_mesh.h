@@ -10,7 +10,7 @@ struct he_edge;
 
 struct he_vert
 {
-	he_vert():edge(0){}//,index(-1)
+	he_vert():edge(0),extra_data(0){}//,index(-1)
 
 	float3 pos;
 	float3 normal;
@@ -49,6 +49,8 @@ public:
 		edges.clear();
 		faces.clear();
 	}
+
+	bool dumpOFF(const char* fpath);
 
 	mlist<he_vert> verts;
 	mlist<he_edge> edges;
