@@ -246,7 +246,7 @@ public:
 		return ret;
 	}
 
-	__forceinline float3 last_row()const
+	__forceinline float3 last_col()const
 	{
 		return float3(m[12],m[13],m[14]);
 	}

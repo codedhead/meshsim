@@ -3,6 +3,7 @@
 #include <vector>
 #include <set>
 #include <map>
+#include <algorithm>
 using namespace std;
 
 
@@ -27,17 +28,27 @@ __forceinline float4 plane(const he_vert* v1,const he_vert* v2,const he_vert* v3
 // todo: set, no order
 struct vert_pair
 {
-	vert_pair(he_vert* p1,he_vert* p2):v1(p1),v2(p2){
-		compute_error();
-	}
-	//vert_pair(he_edge* e):edge(e),v1(0),v2(0){}
-	//he_edge* edge; // if this pair is edge
-	he_vert* v1,*v2;
+	//vert_pair(he_vert* p1,he_vert* p2):v1(p1),v2(p2){	compute_error();	}
+	//he_vert* v1,*v2;
+
+	vert_pair(he_edge* e):edge(e){compute_error();}
+	he_edge* edge;
+	
 	float3 optimal_pos;
+	float3 optimal_nrm; // corresponding normal
 	float error;
+
+	/* TODO
+	When considering
+	a possible contraction, we compare the normal of each neighboring
+	face before and after the contraction. If the normal flips, that 
+	contraction can be either heavily penalized or disallowed.
+	*/
 
 	void compute_error()
 	{
+		he_vert* v1=edge->vert_from,*v2=edge->vert_to;
+
 		Matrix44 Qsum(*(Matrix44*)(v1->extra_data));
 		Qsum+=*(Matrix44*)(v2->extra_data);
 		
@@ -46,7 +57,8 @@ struct vert_pair
 
 		if(can_inv)
 		{
-			optimal_pos=inv.last_row();
+			optimal_pos=inv.last_col();
+			optimal_nrm=v1->normal;// todo: ???;
 			error=Qsum.quadric(optimal_pos);
 		}
 		else // select from v1, v2 or mid point
@@ -54,6 +66,7 @@ struct vert_pair
 			float3 vm=0.5f*(v1->pos+v2->pos);
 
 			optimal_pos=vm;
+			optimal_nrm=normalize(v1->normal+v2->normal);
 			error=Qsum.quadric(optimal_pos);
 
 			float e=Qsum.quadric(v1->pos);
@@ -61,6 +74,7 @@ struct vert_pair
 			{
 				error=e;
 				optimal_pos=v1->pos;
+				optimal_nrm=v1->normal;
 			}
 
 			e=Qsum.quadric(v2->pos);
@@ -68,48 +82,40 @@ struct vert_pair
 			{
 				error=e;
 				optimal_pos=v2->pos;
+				optimal_nrm=v2->normal;
 			}
 		}
-		// normal dont care
 	}
-	/*
-	void change_pointto(he_vert* oldv,he_vert* newv)const
+
+	// keep v1, remove v2
+	void movetoOptimal()
 	{
-		// find all edges from oldv
-		he_edge* edge=oldv->edge;
-		if(edge)
+		he_vert* v1=edge->vert_from,*v2=edge->vert_to;
+
+		// update v1 as the new vert
+		v1->pos=optimal_pos;
+		v1->normal=optimal_nrm;
+		*(Matrix44*)(v1->extra_data) += *(Matrix44*)(v2->extra_data);
+
+		// update edges_with_v2 to point to new vert
+		he_edge* v2_edge=v2->edge;
+		if(v2_edge)
 		{
 			do 
 			{
-				edge->vert_from=newv;
-				edge=edge->pair->next;
-			} while (edge!=oldv->edge);
-		}
+				he_edge* next_edge=v2_edge->pair->next;
+				he_vert* v3=v2_edge->vert_to;
 
-		// find all edges to oldv
-		edge=oldv->edge->pair;
-		if(edge)
-		{
-			do
-			{
-				edge->vert_to=newv;
-				edge=edge->next->pair; // todo: check
-			} while (edge!=oldv->edge->pair);
+				if(v3!=v1) // doesn't matter?
+				{
+					v2_edge->pair->vert_to=v1;
+					v2_edge->vert_from=v1;
+				}
+
+				v2_edge=next_edge;
+			} while (v2_edge!=v2->edge);
 		}
 	}
-
-	he_vert* contract(MeshSim& mesh_sim)const
-	{
-// 		he_vert* new_vert=mesh_sim.mesh->verts.append();
-// 		new_vert->pos=optimal_pos;
-// 
-// 		change_pointto(v1,new_vert);
-// 		change_pointto(v2,new_vert);
-// 
-// 		return new_vert;
-		return 0;
-	}
-	*/
 };
 
 struct vert_pair_CMP
@@ -181,12 +187,15 @@ void MeshSim::preprocess(he_mesh* mesh,void* hh)
 				he_vert* v2=edge->vert_to;
 
 				// avoid duplicate
-				if(v1<v2)
-					heap_->insert(vert_pair(v1,v2));
+				//if(v1<v2)
+				if(v1->id<v2->id)
+					heap_->insert(vert_pair(edge));
 
 				edge=edge->pair->next;
 			} while (edge!=v1->edge);
 		}
+
+		//if(heap_->size()>0) break;
 
 		/*
 		// find verts within threshold
@@ -204,103 +213,104 @@ void MeshSim::preprocess(he_mesh* mesh,void* hh)
 	}
 }
 
+typedef PairHeap::iterator HeapItr;
+struct HeapItrCMP
+{
+	bool operator()(const HeapItr& a,const HeapItr& b)
+	{
+		return a->edge<b->edge;
+	}
+};
+
 void MeshSim::simplify(he_mesh* mesh,int target_faces)
 {
-	PairHeap heap_;
+	PairHeap heap_;	
+
+	map<he_vert*,vector<HeapItr> > vert2pair; // if pair contains the vert
 
 	preprocess(mesh,&heap_);
 
-	while(mesh->faces.size()>target_faces)
+	for(HeapItr itr=heap_.begin();itr!=heap_.end();++itr)
 	{
-		vert_pair min_cost_pair=*(heap_.begin());heap_.erase(heap_.begin());
-		he_vert* v1=min_cost_pair.v1,*v2=min_cost_pair.v2;
-				
-		// update v1 as the new vert
-		v1->pos=min_cost_pair.optimal_pos;
-		// todo //v1->normal=?;
+		vert2pair[itr->edge->vert_from].push_back(itr);
+		vert2pair[itr->edge->vert_to].push_back(itr);
+	}
 
-		// update edges_with_v2 to point to new vert
-		he_edge* v2_edge=v2->edge;
-		if(v2_edge)
+	while(!heap_.empty()&&mesh->faces.size()>target_faces)
+	{
+		vert_pair min_cost_pair=*(heap_.begin());
+		he_vert* v1=min_cost_pair.edge->vert_from;
+		he_vert* v2=min_cost_pair.edge->vert_to;
+		min_cost_pair.movetoOptimal();
+
+		vector<HeapItr>& pairs_with_v1=vert2pair[v1];
+		vector<HeapItr>& pairs_with_v2=vert2pair[v2];
+		set<HeapItr,HeapItrCMP> union_itr;
+		union_itr.insert(pairs_with_v1.begin(),pairs_with_v1.end());
+		union_itr.insert(pairs_with_v2.begin(),pairs_with_v2.end());
+		/*vector<HeapItr> union_itr;
+		sort(pairs_with_v1.begin(),pairs_with_v1.end());
+		sort(pairs_with_v2.begin(),pairs_with_v2.end());
+		set_union(pairs_with_v1.begin(),pairs_with_v1.end(),
+				pairs_with_v2.begin(),pairs_with_v2.end(),
+				union_itr.begin());
+		*/
+
+		for(set<HeapItr,HeapItrCMP>::iterator it=union_itr.begin();it!=union_itr.end();++it)
 		{
-			do 
+			HeapItr heapitr=*it;
+
+			he_edge* edge=heapitr->edge;
+			he_vert* v = (edge->vert_from!=v1&&edge->vert_from!=v2)?edge->vert_from:edge->vert_to;
+			if(v==v1||v==v2) continue;
+
+			vector<HeapItr>& related_v=vert2pair[v];
+			for(int j=0;j<related_v.size();++j)
 			{
-				he_edge* next_edge=v2_edge->pair->next;
-
-				he_vert* v3=v2_edge->vert_to;
-				if(v3!=v1)
+				if(related_v[j]==heapitr)
 				{
-					// v3->v2, check if already v3->v1
-					//mesh->merge_duplicate(v2_edge->pair,v3,v1)->vert_to=v1;
-					// v2->v3, check if already v1->v3
-					//mesh->merge_duplicate(v2_edge,v1,v3)->vert_from=v1;
-
-					v2_edge->pair->vert_to=v1;
-					v2_edge->vert_from=v1;
-
+					related_v.erase(related_v.begin()+j);
+					break;
 				}
-			
-				v2_edge=next_edge;
-			} while (v2_edge!=v2->edge);
+			}
+
+			heap_.erase(heapitr);
 		}
+		heap_.erase(heap_.begin());
+
+		// only support edge contraction currently
+		he_edge* edge_v1v2=min_cost_pair.edge;
 		
-
-		he_edge* edge_v1v2=is_edge(v1,v2);
-		if(!edge_v1v2) // only support edge contraction currently
-			continue;
-		
-		if(edge_v1v2->pair&&edge_v1v2->pair->face)
-		{
-			he_edge* outer1=edge_v1v2->pair->next->pair;
-			he_edge* outer2=edge_v1v2->pair->prev->pair;
-			outer1->pair=outer2;
-			outer2->pair=outer1;
-
-			if(edge_v1v2->vert_from->edge==outer1->pair)
-				edge_v1v2->vert_from->edge=outer2;
-			if(outer1->vert_from->edge==outer2->pair)
-				outer1->vert_from->edge=outer1;
-
-			mesh->faces.remove(edge_v1v2->pair->face);
-			edge_v1v2->pair->face=0;
-
-			mesh->edges.remove(edge_v1v2->pair->prev);
-			mesh->edges.remove(edge_v1v2->pair->next);
-		}
-		else // boundary edge, update next
-		{
-			edge_v1v2->pair->prev->next=edge_v1v2->pair->next;
-		}
-
-		if(edge_v1v2->face)
-		{
-			he_edge* outer1=edge_v1v2->next->pair;
-			he_edge* outer2=edge_v1v2->prev->pair;
-			outer1->pair=outer2;
-			outer2->pair=outer1;
-				
-			if(edge_v1v2->vert_from->edge==edge_v1v2)
-				edge_v1v2->vert_from->edge=outer2;
-			if(outer1->vert_from->edge==outer2->pair)
-				outer1->vert_from->edge=outer1;
-
-			mesh->faces.remove(edge_v1v2->face);
-			edge_v1v2->face=0;
-
-			mesh->edges.remove(edge_v1v2->prev);
-			mesh->edges.remove(edge_v1v2->next);
-		}
-		else // boundary edge, update next
-		{
-			edge_v1v2->prev->next=edge_v1v2->next;
-		}
-
-		mesh->edges.remove(edge_v1v2->pair);
-		mesh->edges.remove(edge_v1v2);
+		mesh->remove_edge_related(edge_v1v2->pair,false); // keep v1 (pair's v_to)
+		mesh->remove_edge_related(edge_v1v2,true); // keep v1 (v_from)
+		//mesh->edges.remove(edge_v1v2->pair);
+		//mesh->edges.remove(edge_v1v2);
 
 		mesh->verts.remove(v2);
 
-		// todo:  erase all edges with v1,v2, update them with new_v1
-	}
 
+		vert2pair.erase(v2);
+		pairs_with_v1.clear();
+		// reinsert all edges with v1
+		{
+			he_edge* v1_edge=v1->edge;
+			if(v1_edge)
+			{
+				do 
+				{
+					HeapItr new_itr= (v1_edge->vert_from->id<v1_edge->vert_to->id)?
+						heap_.insert(vert_pair(v1_edge)):
+						heap_.insert(vert_pair(v1_edge->pair));
+
+					vert2pair[v1_edge->vert_from].push_back(new_itr);
+					vert2pair[v1_edge->vert_to].push_back(new_itr);
+
+					v1_edge=v1_edge->pair->next;
+				} while (v1_edge!=v1->edge);
+			}
+		}
+
+		printf("\r cur faces: %d    ",mesh->faces.size());
+	}
+	printf("#\n");
 }

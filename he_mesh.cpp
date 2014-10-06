@@ -221,8 +221,8 @@ bool he_mesh::construct(const MeshData& _mesh)
 bool he_mesh::dumpOFF(const char* fpath)
 {
 	FILE* fp=fopen(fpath,"w");
-	fprintf(fp,"OOF\n");
-	fprintf(fp,"%d %d %d\n",verts.size(),faces.size(),edges.size());
+	fprintf(fp,"OFF\n");
+	fprintf(fp,"%d %d %d\n",verts.size(),faces.size(),0/*edges.size()*/);
 
 	map<he_vert*,int> vert2id;
 	int id=0;
@@ -240,6 +240,8 @@ bool he_mesh::dumpOFF(const char* fpath)
 			vert2id[face->edge->vert_to],
 			vert2id[face->edge->next->vert_to]);
 	}
+
+	fclose(fp);
 
 	return true;
 }

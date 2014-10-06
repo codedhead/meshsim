@@ -64,19 +64,46 @@ public:
 
 	bool dumpOFF(const char* fpath);
 
-	// if v_from->v_to is_edge, replace the edge
-	he_edge* merge_duplicate(he_edge* edge,he_vert* v_from,he_vert* v_to)
+	void remove_edge_related(he_edge* edge,bool keep_vfrom)
 	{
-		he_edge* exist_edge=is_edge(v_from,v_to);
-		if(exist_edge)
+		if(!edge) return;
+		if(edge->face)
 		{
-			if(edge->face&&edge->face->edge==edge)
-				edge->face->edge=exist_edge;
-			//edges.remove(edge);
-			return exist_edge;
+			he_edge* outer1=edge->next->pair;
+			he_edge* outer2=edge->prev->pair;
+
+			if(keep_vfrom&&edge->vert_from->edge==edge)
+			{
+				edge->vert_from->edge=outer2;
+			}
+			else if(!keep_vfrom&&edge->vert_to->edge==edge->next)
+			{
+				edge->vert_to->edge=outer2;
+			}
+
+			//if(edge->prev->vert_from->edge==edge->prev)
+			//	edge->prev->vert_from->edge=outer1;
+			if(outer1->vert_from->edge==outer2->pair)
+				outer1->vert_from->edge=outer1;
+
+			outer1->pair=outer2;
+			outer2->pair=outer1;
+
+			this->faces.remove(edge->face);
+			edge->face=0;
+
+			this->edges.remove(edge->prev);
+			this->edges.remove(edge->next);
 		}
-		else
-			return edge;
+		else // boundary edge, update next
+		{
+			if(keep_vfrom&&edge->vert_from->edge==edge)
+				edge->vert_from->edge=edge->next;
+
+			edge->prev->next=edge->next;
+			edge->next->prev=edge->prev;
+		}
+		this->edges.remove(edge);//???
 	}
 
 	mlist<he_vert> verts;
