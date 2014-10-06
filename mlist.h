@@ -65,7 +65,7 @@ public:
 	
 	void remove(T* val)
 	{
-		if(cnt<=0) return;		
+		if(!val||cnt<=0) return;		
 		mlist_ele<T>* this_ele=GET_ELE(val);
 
 		// assume in list !!!

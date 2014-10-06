@@ -33,7 +33,7 @@ struct T2
 
 typedef T2<int> int2;
 
-__forceinline float3 get_tagent(const float3& normal)
+__forceinline float3 get_tangent(const float3& normal)
 {
 	float3 c1 = cross(normal, float3(0.0f, 0.0f, 1.0f)); 
 	float3 c2 = cross(normal, float3(0.0f, 1.0f, 0.0f)); 
@@ -44,7 +44,7 @@ __forceinline float3 get_tagent(const float3& normal)
 // on from's tangent plane
 float angle_on_tangent_plane(he_vert* from,he_vert* to)
 {
- 	float3 axis=get_tagent(from->normal);
+ 	float3 axis=get_tangent(from->normal);
  	float3 v=to->pos-from->pos;
  	float a=acosf(dot(normalize(v),axis));
 
@@ -96,27 +96,26 @@ bool he_mesh::construct(const MeshData& _mesh)
 			he_edge* e=edges.append();_e3[i]=e;
 			if(!face->edge) face->edge=e;
 
-			// debug
-			e->id_from=vi[i];e->id_to=vi[(i+1)%3];
-
 			int idx=vi[i];
 			he_vert* vfrom=vert_map[idx];
 			if(!vfrom)
 			{
-				vfrom=vert_map[vi[i]]=verts.append();
+				vfrom=vert_map[idx]=verts.append();
+				vfrom->id=idx;
 				vfrom->pos=_mesh.p[idx];
 				vfrom->normal=_mesh.n[idx];
 			}
-			if(!vfrom->edge) vfrom->edge=e;
+			if(!vfrom->edge) vfrom->edge=e; // see !vto
 
-			idx=vi[(i+1)%3];
+			idx=vi[(i+1)%3]; // next
 			he_vert* vto=vert_map[idx];
 			if(!vto)
 			{
 				vto=vert_map[idx]=verts.append();
-				// no edge
+				vto->id=idx;
 				vto->pos=_mesh.p[idx];
 				vto->normal=_mesh.n[idx];
+				// edge not set
 			}
 			
 			e->face=face;
@@ -128,6 +127,9 @@ bool he_mesh::construct(const MeshData& _mesh)
 		_e3[0]->next=_e3[1];
 		_e3[1]->next=_e3[2];
 		_e3[2]->next=_e3[0];
+		_e3[1]->prev=_e3[0];
+		_e3[2]->prev=_e3[1];
+		_e3[0]->prev=_e3[2];
 	}
 
 	
@@ -158,20 +160,11 @@ bool he_mesh::construct(const MeshData& _mesh)
 				// no face
 				// next filled below
 
-				// debug
-				bedge->id_from=itr->second->id_to;
-				bedge->id_to=itr->second->id_from;
-
 				boundary_edges.insert(BoundaryEdge(bedge));
 			}
 		}
 		// else its pair already processed
 	}
-
-	// create and connect boundary half edges
-
-
-	// ASSUME triangle verts are listed in CLOCKWISE
 
 	// MY algorithm:
 	// 1. build the b-he map, sort by start point, then by the edge angle
@@ -194,9 +187,10 @@ bool he_mesh::construct(const MeshData& _mesh)
 		{
 			// wtf??? impossible
 		}
-		if(std::distance(itr_begin,itr_end)==1) // only one
+		if(std::distance(itr_begin,itr_end)==1) // only one, around corner
 		{
 			bitr->edge->next=itr_begin->edge;
+			itr_begin->edge->prev=bitr->edge;
 		}
 		else // face vertices listed in counter-clockwise, search clockwise, find the first edge
 		{
@@ -207,6 +201,7 @@ bool he_mesh::construct(const MeshData& _mesh)
 			BEdge_Itr i=itr_begin;
 			for(;i!=itr_end;++i)
 			{
+				// first <= cur_angle (the largest that <=cur_angle)
 				if(i->angle<=cur_angle) // == wtf!!
 				{
 					break;
@@ -216,6 +211,7 @@ bool he_mesh::construct(const MeshData& _mesh)
 				i=itr_begin;
 
 			bitr->edge->next=i->edge;
+			i->edge->prev=bitr->edge;
 		}
 	}
 
