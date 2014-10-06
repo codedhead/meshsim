@@ -106,7 +106,7 @@ struct vert_pair
 				he_edge* next_edge=v2_edge->pair->next;
 				he_vert* v3=v2_edge->vert_to;
 
-				if(v3!=v1) // doesn't matter?
+				if(v3!=v1) // keep this edge untouched
 				{
 					v2_edge->pair->vert_to=v1;
 					v2_edge->vert_from=v1;
@@ -230,11 +230,15 @@ void MeshSim::simplify(he_mesh* mesh,int target_faces)
 
 	preprocess(mesh,&heap_);
 
+	int hi=0;
 	for(HeapItr itr=heap_.begin();itr!=heap_.end();++itr)
 	{
 		vert2pair[itr->edge->vert_from].push_back(itr);
 		vert2pair[itr->edge->vert_to].push_back(itr);
+
+		printf("\r %d/%d  ",++hi,heap_.size());
 	}
+	printf("#\n");
 
 	while(!heap_.empty()&&mesh->faces.size()>target_faces)
 	{
@@ -283,8 +287,6 @@ void MeshSim::simplify(he_mesh* mesh,int target_faces)
 		
 		mesh->remove_edge_related(edge_v1v2->pair,false); // keep v1 (pair's v_to)
 		mesh->remove_edge_related(edge_v1v2,true); // keep v1 (v_from)
-		//mesh->edges.remove(edge_v1v2->pair);
-		//mesh->edges.remove(edge_v1v2);
 
 		mesh->verts.remove(v2);
 

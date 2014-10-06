@@ -92,6 +92,12 @@ bool he_mesh::construct(const MeshData& _mesh)
 		he_edge* _e3[3];
 		for(int i=0;i<3;++i)
 		{
+			if(edge_map[int2(vi[i],vi[(i+1)%3])])
+			{
+				printf("error: cannot handle non-manifold edge, aborting\n");
+				return false;
+			}
+
 			// assume manifold, then he_edge is always created
 			he_edge* e=edges.append();_e3[i]=e;
 			if(!face->edge) face->edge=e;

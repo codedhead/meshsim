@@ -127,16 +127,19 @@ void print_usage()
 // forward energy
 int main(int argc,char** argv)
 {
+	string input_file=argv[1];
+	int faces=0;
+	float ratio=0.5f;
+
+	he_mesh mesh;
+
+	
 	if(argc<2)
 	{
 		print_usage();
 		return 0;
 	}
-	string input_file=argv[1];
-
-	// parse options
-	int faces=0;
-	float ratio=0.5f;	
+	
 	for(int i=2;i<argc;++i)
 	{
 		if(!strcmp(argv[i],"-faces"))
@@ -155,11 +158,9 @@ int main(int argc,char** argv)
 					ratio=0.5f;
 			}
 		}
-	}
-
-	he_mesh mesh;
+	}	
 	
-	//MeshData mesh_data=mesh1();
+	//MeshData mesh_data=mesh2();
 	//MeshData mesh_data=plane(1000,1000);
 	MeshData mesh_data;
 	string fext=input_file.substr(input_file.length()-4,4);
@@ -174,7 +175,8 @@ int main(int argc,char** argv)
 	}
 	
 	tic();
-	mesh.construct(mesh_data);
+	if(!mesh.construct(mesh_data))
+		return 0;
 	toc("convert to half-edge mesh");
 
 	//mesh.dumpOFF("input.off");

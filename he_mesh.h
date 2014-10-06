@@ -103,7 +103,7 @@ public:
 			edge->prev->next=edge->next;
 			edge->next->prev=edge->prev;
 		}
-		this->edges.remove(edge);//???
+		this->edges.remove(edge);
 	}
 
 	mlist<he_vert> verts;
